@@ -8,13 +8,17 @@ pygame.init()
 screen_info = pygame.display.Info()
 size = width, height = screen_info.current_w, screen_info.current_h
 screen = pygame.display.set_mode(size)
+menu = None
 all_sprites = pygame.sprite.Group()
 tile_width = tile_height = 50
 tile_group = pygame.sprite.Group()
 wall_group = pygame.sprite.Group()
 player = pygame.sprite.Group()
-conn = sqlite3.connect('Data/data-iww.db')
+conn = sqlite3.connect('Data/data-iw.db')
 cur = conn.cursor()
+arial_100 = pygame.font.SysFont('arial', 100)
+active = False
+activeG = False
 
 
 def load_image(name, colorkey=None):
@@ -42,22 +46,23 @@ def load_image(name, colorkey=None):
 
 
 def start_screen():
-    fon = pygame.transform.scale(load_image('Backgrounds\pressbackground.png'), (width, height))
-    screen.blit(fon, (0, 0))
+    fon = pygame.transform.scale(load_image('Backgrounds/pressbackground.png'), (width, height))
 
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-            elif event.type == pygame.KEYDOWN or \
+            if event.type == pygame.KEYDOWN or \
                     event.type == pygame.MOUSEBUTTONDOWN:
-                return IntoAkk()
+                return
+        screen.blit(fon, (0, 0))
         pygame.display.flip()
         clock.tick(10)
 
 
 def IntoAkk():
-    fon = pygame.transform.scale(load_image('Backgrounds\passbackground.png'), (width, height))
+    global menu, active
+    fon = pygame.transform.scale(load_image('Backgrounds/passbackground.png'), (width, height))
     screen.blit(fon, (0, 0))
     text = '********'
     font = pygame.font.Font('Data/Courier.ttf', 150)
@@ -70,28 +75,61 @@ def IntoAkk():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-            elif event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN:
                 if event.unicode and event.unicode.isalnum() and text[-1] == '*':
                     text = text[:text.find('*')] + event.unicode + text[text.find('*') + 1:]
                     string_rendered = font.render(text, 1, pygame.Color('white'))
                     screen.blit(fon, (0, 0))
                     screen.blit(string_rendered, intro_rect)
-                elif event.type == pygame.KEYDOWN and text[0] != '*':
-                    if event.key == pygame.K_BACKSPACE:
-                        if text[-1] == '*':
-                            text = text[:text.find('*') - 1] + '*' * (8 - text.find('*') + 1)
-                        else:
-                            text = text[:7] + '*'
-                        string_rendered = font.render(text, 1, pygame.Color('white'))
-                        screen.blit(fon, (0, 0))
-                        screen.blit(string_rendered, intro_rect)
-                elif event.type == pygame.KEYDOWN and text[-1] != '*':
-                    if event.key == pygame.K_RETURN:
-                        cur.execute("SELECT COUNT(*) FROM Users WHERE password = ?", (text,))
-                        if cur.fetchone()[0]:
-                            return
+            if event.type == pygame.KEYDOWN and text[0] != '*':
+                if event.key == pygame.K_BACKSPACE:
+                    if text[-1] == '*':
+                        text = text[:text.find('*') - 1] + '*' * (8 - text.find('*') + 1)
+                    else:
+                        text = text[:7] + '*'
+                    string_rendered = font.render(text, 1, pygame.Color('white'))
+                    screen.blit(fon, (0, 0))
+                    screen.blit(string_rendered, intro_rect)
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    cur.execute("SELECT COUNT(*) FROM Users WHERE password = ?", (text,))
+                    if cur.fetchone()[0]:
+                        menu = Menu()
+                        active = True
+                        return
         pygame.display.flip()
         clock.tick(20)
+
+
+class Menu:
+    def __init__(self):
+        global active
+        self.option_surfaces = []
+        self.callbacks = []
+        self.current_option_index = 0
+
+    def append_option(self, option, callback):
+        if active:
+            self.option_surfaces.append(arial_100.render(option, True, (255, 255, 255)))
+            self.callbacks.append(callback)
+
+    def switch(self, direction):
+        if active:
+            self.current_option_index = max(0, min(self.current_option_index + direction,
+                                                len(self.option_surfaces) - 1)) # Эта строка предотвращает ошибки с индексом
+
+    def select(self):
+        if active:
+            self.callbacks[self.current_option_index]()
+
+    def draw(self, x, y, padding):
+        if active:
+            for i, option in enumerate(self.option_surfaces):
+                option_rect = option.get_rect()
+                option_rect.topleft = (x, y + i * padding)
+                if i == self.current_option_index:
+                    pygame.draw.rect(screen, (0, 100, 0), option_rect)
+                screen.blit(option, option_rect)
 
 
 # class Tile(pygame.sprite.Sprite):
@@ -120,30 +158,90 @@ def load_level(filename):
     return list(map(lambda x: x.ljust(max_width, '.'), level_map))
 
 
-# def generate_level(level):
-#     new_player, x, y = None, None, None
-#     for y in range(len(level)):
-#         for x in range(len(level[y])):
-#             if level[y][x] == '.':
-#                 Tile('empty', x, y)
-#             elif level[y][x] == '#':
-#                 Tile('wall', x, y)
-#             elif level[y][x] == '@':
-#                 Tile('empty', x, y)
-#                 new_player = Player(x, y)
-#     return new_player, x, y
+def Quit():
+    global running
+    running = False
+
+
+class GameMenu():
+    def __init__(self):
+        global activeG
+        self.option_surfaces = []
+        self.callbacks = []
+        self.current_option_index = 0
+
+    def append_option(self, option, callback):
+        if activeG:
+            self.option_surfaces.append(arial_100.render(option, True, (255, 255, 255)))
+            self.callbacks.append(callback)
+
+    def switch(self, direction):
+        if activeG:
+            self.current_option_index = max(0, min(self.current_option_index + direction,
+                                                len(self.option_surfaces) - 1)) # Эта строка предотвращает ошибки с индексом
+
+    def select(self):
+        if activeG:
+            self.callbacks[self.current_option_index]()
+
+    def draw(self, x, y, padding):
+        if activeG:
+            for i, option in enumerate(self.option_surfaces):
+                option_rect = option.get_rect()
+                option_rect.topleft = (x, y + i * padding)
+                if i == self.current_option_index:
+                    pygame.draw.rect(screen, (0, 100, 0), option_rect)
+                screen.blit(option, option_rect)
+
+    def Back(self):
+        global active, activeG
+        active, activeG = True, False
+
+
+def OpenSMenu():
+    global active, activeG, gamemenu
+    active, activeG = False, True
+    gamemenu = GameMenu()
+    gamemenu.append_option('Миссия 1', Quit)
+    gamemenu.append_option('Назад', gamemenu.Back)
 
 
 # player = None
 clock = pygame.time.Clock()
 start_screen()
 IntoAkk()
+menu = Menu()
+gamemenu = GameMenu()
+menu.append_option('Играть', OpenSMenu)
+menu.append_option('Выход', Quit)
+gamemenu.append_option('Миссия 1', Quit)
+gamemenu.append_option('Назад', gamemenu.Back)
 # player, level_x, level_y = generate_level(load_level('map.txt'))
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if active:
+            if ((event.type == pygame.KEYDOWN)
+            and (event.key == pygame.K_w)):
+                menu.switch(-1)
+            if ((event.type == pygame.KEYDOWN)
+            and (event.key == pygame.K_s)):
+                menu.switch(1)
+            if ((event.type == pygame.KEYDOWN)
+            and (event.key == pygame.K_SPACE)):
+                menu.select()
+        elif activeG:
+            if ((event.type == pygame.KEYDOWN)
+            and (event.key == pygame.K_w)):
+                gamemenu.switch(-1)
+            if ((event.type == pygame.KEYDOWN)
+            and (event.key == pygame.K_s)):
+                gamemenu.switch(1)
+            if ((event.type == pygame.KEYDOWN)
+            and (event.key == pygame.K_SPACE)):
+                gamemenu.select()
         # if player is not None:
         #     if pygame.sprite.spritecollideany(player, wall_group) is None:
         #         if event.type == pygame.KEYDOWN and event.key == pygame.K_UP:
@@ -165,12 +263,16 @@ while running:
         #             player.rect.top += 50
         #             if pygame.sprite.spritecollideany(player, wall_group):
         #                 player.rect.top -= 50
-    clock.tick(50)
-    screen.fill((0, 0, 255))
+    screen.fill((0, 0, 0))
+    if active:
+        menu.draw(100, 100, 100)
+    elif activeG:
+        gamemenu.draw(100, 100, 100)
     # all_sprites.draw(screen)
     # all_sprites.update()
     # tile_group.draw(screen)
     # tile_group.update(screen)
     pygame.display.flip()
+    clock.tick(60)
 conn.close()
 pygame.quit()
