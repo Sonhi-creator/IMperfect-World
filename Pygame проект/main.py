@@ -355,7 +355,7 @@ class Game:
         screen.blit(gamefon, (0, 0))
 
     def game_end(self, i=1):
-        global game, active, running
+        global game, active, running, score, nav
         game = False
         active = True
         player.rect.topleft = (600, 655)
@@ -368,6 +368,8 @@ class Game:
             self.string_rendered = self.font.render(str(score), 1, pygame.Color('white'))
             self.score_rect = self.string_rendered.get_rect()
             self.score_rect.left, self.score_rect.top = 314, 382
+        score = 100
+        nav = ''
 
         while True:
             for event in pygame.event.get():
