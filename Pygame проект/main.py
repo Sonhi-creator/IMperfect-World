@@ -4,7 +4,6 @@ import random
 import math
 import time
 import pygame_gui
-import json
 
 import pygame
 import sqlite3
