@@ -1,0 +1,30 @@
+{
+    "button": {
+        "images": {
+            "hovered_image": {
+                "package": "Images.Backgrounds.Skin-menu",
+                "resource": "Second_Skin_Background-Image.png"
+            },
+            "normal_image": {
+                "package": "Images.Backgrounds.Skin-menu",
+                "resource": "Taro2.png"
+            },
+            "selected_image": {
+                "package": "Images.Backgrounds.Skin-menu",
+                "resource": "Success.png"
+            },
+            "disabled_image": {
+                 "package": "Images.Backgrounds.Skin-menu",
+                 "resource": "equipped.png"
+             }
+        },
+        "misc":
+         {
+             "state_transitions":
+             {
+                 "normal_hovered": "0.05",
+                 "hovered_normal": "0.05"
+             }
+         }
+    }
+}

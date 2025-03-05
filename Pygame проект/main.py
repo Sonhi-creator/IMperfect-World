@@ -2,6 +2,9 @@ import os
 import sys
 import random
 import math
+import time
+import pygame_gui
+import json
 
 import pygame
 import sqlite3
@@ -15,24 +18,28 @@ size = width, height = 1366, 768
 screen = pygame.display.set_mode(size)
 all_sprites = pygame.sprite.Group()
 wall_group = pygame.sprite.Group()
+tile_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 exit_group = pygame.sprite.Group()
 enemy_group = pygame.sprite.Group()
 hit_enemy_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
 particle_group = pygame.sprite.Group()
+manager1 = pygame_gui.UIManager((1366, 768), theme_path="Data/jsons/skin_button1.json")
+manager2 = pygame_gui.UIManager((1366, 768), theme_path="Data/jsons/skin_button2.json")
 conn1 = sqlite3.connect('Data/data-iw.db')
 cur = conn1.cursor()
 arial_100 = pygame.font.SysFont('arial', 100)
 nav = ''
 score = 100
-m1_cooldown = 5
+m1_cooldown = 10
 active = False
 activeG = False
 game = False
 player_walking = False
 play = True
 enemy_walking = False
+skin_menu = False
 
 
 def load_image(name, colorkey=None):
@@ -52,19 +59,25 @@ def load_image(name, colorkey=None):
     return image
 
 
-player_image = load_image('Hero/Rogue/Idle/Idle-Sheet.png', -1)
-player_walk_image = load_image('Hero/Rogue/Run/Run-Sheet1.png', -1)
 enemy_image = load_image('Enemy/Skeleton Crew/Skeleton - Base/Idle/Idle-Sheet.png', -1)
 enemy_walk_image = load_image('Enemy/Skeleton Crew/Skeleton - Base/Run/Run-Sheet.png', -1)
-quest_background = load_image('Environment/Dungeon Prison/Assets/Quest_Background.png')
-bullet_img = load_image('Environment/Dungeon Prison/Assets/bullet.png', -1)
-hit_img = load_image('Environment/Dungeon Prison/Assets/hit.png', -1)
-tile_images = {
-    '1': 'Environment/Dungeon Prison/Assets/Boxwall.png',
-    '2': 'Environment/Dungeon Prison/Assets/barrelwall.pngp',
-    '3': 'Environment/Dungeon Prison/Assets/Exit.pngp',
-    '4': 'Environment/Dungeon Prison/Assets/Jug.pngp'
+bullet_img = load_image('Environment/Dungeon Prison/Assets/bullets/bullet.png', -1)
+hit_img = load_image('Environment/Dungeon Prison/Assets/bullets/hit.png', -1)
+skin_fon = load_image("Backgrounds/Skin-menu/Base_Skin_Background.png")
+player_skins = {
+    "0": "Hero/Rogue/Idle/Idle-Sheet.png;Hero/Rogue/Run/Run-Sheet1.png",
+    "1": "Hero/Rogue/Idle/Idle-Sheet-Inverse.png;Hero/Rogue/Run/Run-Sheet1-Inverse.png"
 }
+tile_images = {
+    '1': 'Environment/Dungeon Prison/Assets/tiles/Boxwall.png',
+    '2': 'Environment/Dungeon Prison/Assets/tiles/barrelwall.pngp',
+    '3': 'Environment/Dungeon Prison/Assets/tiles/Exit.pngp',
+    '4': 'Environment/Dungeon Prison/Assets/tiles/Jug.pngp'
+}
+load_bg1, load_bg2, load_bg3 = (load_image('Backgrounds/Loading/Loading_background1.png'),
+                                load_image('Backgrounds/Loading/Loading_background2.png'),
+                                load_image('Backgrounds/Loading/Loading_background3.png'))
+loading_images = [load_bg1, load_bg2, load_bg3]
 
 
 def start_screen():
@@ -87,12 +100,12 @@ def start_screen():
 
 
 def IntoAkk():
-    global active, play
+    global active, play, progress, password
     fon = pygame.transform.scale(load_image('Backgrounds/passbackground.png'), (width, height))
     screen.blit(fon, (0, 0))
-    text = '********'
+    password = '********'
     font = pygame.font.Font('Data/Courier.ttf', 150)
-    string_rendered = font.render(text, 1, pygame.Color('white'))
+    string_rendered = font.render(password, 1, pygame.Color('white'))
     intro_rect = string_rendered.get_rect()
     intro_rect.top, intro_rect.left = 268, 332
     screen.blit(string_rendered, intro_rect)
@@ -105,24 +118,26 @@ def IntoAkk():
                 if event.key == pygame.K_ESCAPE:
                     play = False
                     return
-                if event.unicode and event.unicode.isalnum() and text[-1] == '*':
-                    text = text[:text.find('*')] + event.unicode + text[text.find('*') + 1:]
-                    string_rendered = font.render(text, 1, pygame.Color('white'))
+                if event.unicode and event.unicode.isalnum() and password[-1] == '*':
+                    password = password[:password.find('*')] + event.unicode + password[password.find('*') + 1:]
+                    string_rendered = font.render(password, 1, pygame.Color('white'))
                     screen.blit(fon, (0, 0))
                     screen.blit(string_rendered, intro_rect)
-            if event.type == pygame.KEYDOWN and text[0] != '*':
+            if event.type == pygame.KEYDOWN and password[0] != '*':
                 if event.key == pygame.K_BACKSPACE:
-                    if text[-1] == '*':
-                        text = text[:text.find('*') - 1] + '*' * (8 - text.find('*') + 1)
+                    if password[-1] == '*':
+                        password = password[:password.find('*') - 1] + '*' * (8 - password.find('*') + 1)
                     else:
-                        text = text[:7] + '*'
-                    string_rendered = font.render(text, 1, pygame.Color('white'))
+                        password = password[:7] + '*'
+                    string_rendered = font.render(password, 1, pygame.Color('white'))
                     screen.blit(fon, (0, 0))
                     screen.blit(string_rendered, intro_rect)
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
-                    cur.execute("SELECT COUNT(*) FROM Users WHERE password = ?", (text,))
+                    cur.execute("SELECT COUNT(*) FROM Users WHERE password = ?", (password,))
                     if cur.fetchone()[0]:
+                        cur.execute("SELECT progress FROM Users WHERE password = ?", (password,))
+                        progress = cur.fetchone()[0].split(':')
                         active = True
                         return
         pygame.display.flip()
@@ -166,7 +181,7 @@ class Menu:
 
 class Tile(pygame.sprite.Sprite):
     def __init__(self, typ, x, y, tile_width, tile_height):
-        super().__init__(all_sprites)
+        super().__init__(tile_group, all_sprites)
         if typ != '3':
             wall_group.add(self)
         else:
@@ -190,8 +205,8 @@ class Player(pygame.sprite.Sprite):
         super().__init__(player_group, all_sprites)
         self.frames_standing = []
         self.frames_walking = []
-        self.sheet1 = player_image
-        self.sheet2 = player_walk_image
+        self.sheet1, self.sheet2 = player_skins["0"].split(";")
+        self.sheet1, self.sheet2 = load_image(self.sheet1, -1), load_image(self.sheet2, -1)
         self.cut_sheet(self.sheet1, 4, 1, self.frames_standing)
         self.cut_sheet(self.sheet2, 6, 1, self.frames_walking)
         self.cur_frame = 0
@@ -332,21 +347,81 @@ class Particle(pygame.sprite.Sprite):
 
 
 
+def Reset():
+    global nav, score, G_current_option_index
+    score = 100
+    nav = ''
+    for tile in tile_group:
+        tile.kill()
+    player.rect.topleft = (600, 655)
+    for sprite in enemy_group:
+        sprite.kill()
+    G_current_option_index = 0
+
+
+class Skin_Change_Menu():
+    def __init__(self):
+        self.current_skin = "0"
+        self.button1 = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((31, 153), (289, 479)),
+                                                    text='',
+                                                    manager=manager1)
+        self.button2 = pygame_gui.elements.UIButton(relative_rect=pygame.Rect((371, 153), (289, 479)),
+                                                    text='',
+                                                    manager=manager2)
+        self.button1.disable()
+        self.buttons = [self.button1, self.button2]
+
+    def Change(self, skin):
+        global player_skins
+        self.buttons[int(self.current_skin)].enable()
+        self.current_skin = skin
+        self.buttons[int(self.current_skin)].disable()
+        player.frames_standing = []
+        player.frames_walking = []
+        self.sheet1, self.sheet2 = player_skins[self.current_skin].split(";")
+        self.sheet1, self.sheet2 = load_image(self.sheet1, -1), load_image(self.sheet2, -1)
+        player.cut_sheet(self.sheet1, 4, 1, player.frames_standing)
+        player.cut_sheet(self.sheet2, 6, 1, player.frames_walking)
+
+    def opens(self):
+        global active, skin_menu
+        skin_menu, active = True, False
+
+    def back(self):
+        global active, skin_menu
+        skin_menu, active = False, True
+        menu.current_option_index = 0
+
+
 class Game:
     def __init__(self):
         self.end_time = None
 
     def open_game(self, args):
-        global game, active, activeG, els
-        game, active, activeG = True, False, False
-        self.i, self.folder = args.split(',')
-        self.load_map(self.folder, self.i)
-        cur2.execute("SELECT setting FROM Mission WHERE number = ?", (self.i,))
-        els, self.en_settings = cur2.fetchone()[0].split(';')
-        els = els.split(':')
-        # 1/753/508/10/9:1/603/545/10/9:3/795/100/40/40:2/600/200/10/9:4/900/290/1/2:4/919/289/1/2;8/550/210/40/50
-        # 1/523/568/10/9:1/683/500/10/9:2/513/476/10/9:3/795/100/40/40:2/805/250/10/9:4/534/250/1/2:4/557/260/1/2:4/537/265/1/2:4/560/272/1/2;5/600/250/80/50
-        create_enemies(self.en_settings)
+        global game, active, activeG, els, loading_images
+        self.n, self.folder, self.quest = args.split(':')
+        if int(self.n) <= int(progress[0]):
+            game, active, activeG = True, False, False
+            self.quest_font1 = pygame.font.Font('Data/Courier.ttf', 75)
+            self.quest_font2 = pygame.font.Font('Data/Courier.ttf', 40)
+            self.string_rendered1 = self.quest_font1.render(f'Миссия #{self.n}', 1, pygame.Color('white'))
+            self.score_rect1 = self.string_rendered1.get_rect()
+            self.score_rect1.left, self.score_rect1.top = 30, 55
+            self.string_rendered2 = self.quest_font2.render(f'Голос: {self.quest}', 1, pygame.Color('white'))
+            self.score_rect2 = self.string_rendered2.get_rect()
+            self.score_rect2.left, self.score_rect2.top = 45, 622
+            screen.blit(random.choice(loading_images), (0, 0))
+            screen.blit(self.string_rendered1, self.score_rect1)
+            screen.blit(self.string_rendered2, self.score_rect2)
+            pygame.display.flip()
+            time.sleep(5)
+            self.load_map(self.folder, self.n)
+            cur2.execute("SELECT setting FROM Mission WHERE number = ?", (self.n,))
+            els, self.en_settings = cur2.fetchone()[0].split(';')
+            els = els.split(':')
+            # 1/753/508/10/9:1/603/545/10/9:3/795/100/40/40:2/600/200/10/9:4/900/290/1/2:4/919/289/1/2;8/550/210/40/50
+            # 1/523/568/10/9:1/683/500/10/9:2/513/476/10/9:3/795/100/40/40:2/805/250/10/9:4/534/250/1/2:4/557/260/1/2:4/537/265/1/2:4/560/272/1/2;5/600/250/80/50
+            create_enemies(self.en_settings)
 
     def load_map(self, folder, i):
         global gamefon
@@ -355,36 +430,25 @@ class Game:
         screen.blit(gamefon, (0, 0))
 
     def game_end(self, i=1):
-        global game, active, running, score, nav
+        global game, active, progress, password
         game = False
         active = True
-        player.rect.topleft = (600, 655)
-        for sprite in enemy_group:
-            sprite.kill()
-        self.fon = load_image(f'Backgrounds/End{i}.png')
+        self.fon = load_image(f'Backgrounds/Ends/End{i}.png')
         self.end_time = pygame.time.get_ticks()
+        self.mis_num = int(self.n)
+        progress = str(self.mis_num + 1) + ':' + ':'.join(progress[1::])
+        cur.execute("UPDATE Users SET progress = ? WHERE password = ?", (progress, password))
+        conn1.commit()
+        screen.blit(self.fon, (0, 0))
         if i == 1:
             self.font = pygame.font.Font('Data/Courier.ttf', 100)
             self.string_rendered = self.font.render(str(score), 1, pygame.Color('white'))
             self.score_rect = self.string_rendered.get_rect()
             self.score_rect.left, self.score_rect.top = 314, 382
-        score = 100
-        nav = ''
-
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                    running = False
-                    return
-            if pygame.time.get_ticks() - self.end_time >= 10000:
-                return
-            screen.blit(self.fon, (0, 0))
-            if i == 1:
-                screen.blit(self.string_rendered, self.score_rect)
-            pygame.display.flip()
-            clock.tick(10)
+            screen.blit(self.string_rendered, self.score_rect)
+        pygame.display.flip()
+        Reset()
+        time.sleep(10)
 
 
 
@@ -440,6 +504,7 @@ def OpenSMenu():
 
 
 clock = pygame.time.Clock()
+time_delta = clock.tick(60) / 1000.0
 start_screen()
 if play:
     IntoAkk()
@@ -447,10 +512,12 @@ menu = Menu()
 gamemenu = GameMenu()
 mission = Game()
 player = Player(600, 655)
+skins = Skin_Change_Menu()
 menu.append_option('Играть', OpenSMenu)
+menu.append_option('Смена скина', skins.opens)
 menu.append_option('Выход', Quit)
-gamemenu.append_option('Миссия 1', mission.open_game, '1,Dungeon Prison/Assets')
-gamemenu.append_option('Миссия 2', mission.open_game, '2,Dungeon Prison/Assets')
+gamemenu.append_option('Миссия 1', mission.open_game, '1:Dungeon Prison/Assets:Сбеги через дверь, не задев врагов.')
+gamemenu.append_option('Миссия 2', mission.open_game, '2:Dungeon Prison/Assets:Скелетов всe больше. Осторожнее.')
 gamemenu.append_option('Назад', gamemenu.Back)
 running = play
 enemys_update_timer = 0
@@ -483,6 +550,9 @@ while running:
                 gamemenu.select()
         if game:
             m1_cooldown -= 1
+            time_delta = clock.tick(60) / 1000.0
+            manager1.process_events(event)
+            manager2.process_events(event)
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_a:
                     nav += 'a'
@@ -502,10 +572,10 @@ while running:
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if m1_cooldown <= 0:
+                    m1_cooldown = 10
                     bullet = Bullet(player.rect.left, player.rect.top)
                     b_coords = pygame.mouse.get_pos()
                     bullet.find_path(b_coords[0], b_coords[1])
-                    m1_cooldown = 5
 
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_a:
@@ -516,6 +586,17 @@ while running:
                     nav = nav[:nav.find('d')] + nav[nav.find('d') + 1::]
                 elif event.key == pygame.K_s:
                     nav = nav[:nav.find('s')] + nav[nav.find('s') + 1::]
+
+        elif skin_menu:
+            manager1.process_events(event)
+            manager2.process_events(event)
+            if event.type == pygame_gui.UI_BUTTON_PRESSED:
+                if event.ui_element == skins.button1:
+                    skins.Change("0")
+                elif event.ui_element == skins.button2:
+                    skins.Change("1")
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_BACKSPACE:
+                skins.back()
 
     screen.fill((0, 0, 0))
     if active:
@@ -621,6 +702,12 @@ while running:
         player_group.draw(screen)
         enemy_group.draw(screen)
         particle_group.draw(screen)
+    elif skin_menu:
+        screen.blit(skin_fon, (0, 0))
+        manager1.update(time_delta)
+        manager2.update(time_delta)
+        manager1.draw_ui(screen)
+        manager2.draw_ui(screen)
 
     pygame.display.flip()
     clock.tick(10)
