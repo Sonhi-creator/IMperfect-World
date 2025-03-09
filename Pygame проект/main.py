@@ -28,6 +28,24 @@ manager1 = pygame_gui.UIManager((1366, 768), theme_path="Data/jsons/skin_button1
 manager2 = pygame_gui.UIManager((1366, 768), theme_path="Data/jsons/skin_button2.json")
 conn1 = sqlite3.connect('Data/data-iw.db')
 cur = conn1.cursor()
+
+pygame.mixer.music.load('Data/Music/StartScreenMusic.mp3')
+MenuMoveSound = pygame.mixer.Sound('Data/Music/MenuMoveMusic.mp3')
+MenuSelectSound = pygame.mixer.Sound('Data/Music/MenuSelectMusic.mp3')
+SkinSelectSound = pygame.mixer.Sound('Data/Music/SkinSelectMusic.mp3')
+HitSound = pygame.mixer.Sound('Data/Music/HitMusic.ogg')
+FireballSound = pygame.mixer.Sound('Data/Music/FireballMusic.mp3')
+EnemyDieSound = pygame.mixer.Sound('Data/Music/EnemyDieMusic.mp3')
+ExitSound = pygame.mixer.Sound('Data/Music/EndMusic.mp3')
+GameOverSound = pygame.mixer.Sound('Data/Music/GameOverMusic.mp3')
+AddSymbolSound = pygame.mixer.Sound('Data/Music/AddSymbolMusic.ogg')
+DeleteSymbolSound = pygame.mixer.Sound('Data/Music/DeleteSymbolMusic.ogg')
+GameSound = pygame.mixer.Sound('Data/Music/GameMusic.mp3')
+LoadingMusic = pygame.mixer.Sound('Data/Music/LoadingMusic.mp3')
+
+HitSound.set_volume(1)
+GameSound.set_volume(0.25)
+
 arial_100 = pygame.font.SysFont('arial', 100)
 nav = ''
 score = 100
@@ -81,6 +99,7 @@ loading_images = [load_bg1, load_bg2, load_bg3]
 
 def start_screen():
     global play
+    pygame.mixer.music.play(-1)
     fon = pygame.transform.scale(load_image('Backgrounds/pressbackground.png'), (width, height))
 
     while True:
@@ -88,10 +107,14 @@ def start_screen():
             if event.type == pygame.QUIT:
                 pygame.quit()
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                MenuSelectSound.play()
+                time.sleep(MenuSelectSound.get_length())
                 play = False
                 return
             if event.type == pygame.KEYDOWN or \
                     event.type == pygame.MOUSEBUTTONDOWN:
+                pygame.mixer.music.stop()
+                MenuSelectSound.play()
                 return
         screen.blit(fon, (0, 0))
         pygame.display.flip()
@@ -115,15 +138,19 @@ def IntoAkk():
                 pygame.quit()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    MenuSelectSound.play()
+                    time.sleep(MenuSelectSound.get_length())
                     play = False
                     return
                 if event.unicode and event.unicode.isalnum() and password[-1] == '*':
+                    AddSymbolSound.play()
                     password = password[:password.find('*')] + event.unicode + password[password.find('*') + 1:]
                     string_rendered = font.render(password, 1, pygame.Color('white'))
                     screen.blit(fon, (0, 0))
                     screen.blit(string_rendered, intro_rect)
             if event.type == pygame.KEYDOWN and password[0] != '*':
                 if event.key == pygame.K_BACKSPACE:
+                    DeleteSymbolSound.play()
                     if password[-1] == '*':
                         password = password[:password.find('*') - 1] + '*' * (8 - password.find('*') + 1)
                     else:
@@ -135,6 +162,7 @@ def IntoAkk():
                 if event.key == pygame.K_RETURN:
                     cur.execute("SELECT COUNT(*) FROM Users WHERE password = ?", (password,))
                     if cur.fetchone()[0]:
+                        MenuSelectSound.play()
                         cur.execute("SELECT progress FROM Users WHERE password = ?", (password,))
                         progress = cur.fetchone()[0].split(':')
                         active = True
@@ -158,11 +186,13 @@ class Menu:
 
     def switch(self, direction):
         if active:
+            MenuMoveSound.play()
             self.current_option_index = max(0, min(self.current_option_index + direction,
                                                 len(self.option_surfaces) - 1)) # Эта строка предотвращает ошибки с индексом
 
     def select(self):
         if active:
+            MenuSelectSound.play()
             if self.args[self.current_option_index] != '':
                 self.callbacks[self.current_option_index](self.args[self.current_option_index])
             else:
@@ -193,7 +223,7 @@ class Tile(pygame.sprite.Sprite):
         self.rect.topleft = (x, y)
 
 
-def tile_update(el):
+def tile_create(el):
     typ, x, y, w, h = el.split('/')
     Tile(typ, int(x), int(y), int(w), int(h))
 
@@ -210,7 +240,7 @@ class Player(pygame.sprite.Sprite):
         self.cut_sheet(self.sheet2, 6, 1, self.frames_walking)
         self.cur_frame = 0
         self.image = self.frames_standing[self.cur_frame]
-        self.rect = self.image.get_rect().move(32, 31)
+        self.rect = self.image.get_rect().move(26, 32)
         self.rect.topleft = (x, y)
 
     def cut_sheet(self, sheet, columns, rows, frames_list):
@@ -230,21 +260,63 @@ class Player(pygame.sprite.Sprite):
                 self.image = self.frames_standing[self.cur_frame]
             return self.image
 
+    def move(self):
+        global pressed_buttons, player_walking
+        pygame.mixer.music.unpause()
+        if (pressed_buttons[pygame.K_a] or pressed_buttons[pygame.K_d] or
+                pressed_buttons[pygame.K_w] or pressed_buttons[pygame.K_s]):
+            if pressed_buttons[pygame.K_a]:
+                player_walking = True
+                self.rect.left -= 10
+                if pygame.sprite.spritecollideany(player, wall_group):
+                    self.rect.left += 10
+                elif self.rect.left < 455:
+                    self.rect.left = 455
+
+            if pressed_buttons[pygame.K_d]:
+                player_walking = True
+                self.rect.left += 10
+                if pygame.sprite.spritecollideany(player, wall_group):
+                    self.rect.left -= 10
+                elif self.rect.right > 995:
+                    self.rect.right = 995
+
+            if pressed_buttons[pygame.K_w]:
+                player_walking = True
+                self.rect.top -= 10
+                if pygame.sprite.spritecollideany(player, wall_group):
+                    self.rect.top += 10
+                elif self.rect.top < 119:
+                    self.rect.top = 119
+
+            if pressed_buttons[pygame.K_s]:
+                player_walking = True
+                self.rect.top += 10
+                if pygame.sprite.spritecollideany(player, wall_group):
+                    self.rect.top -= 10
+                elif self.rect.bottom > 710:
+                    self.rect.bottom = 710
+            for enemy in enemy_group:
+                enemy.find_path(self.rect.left, self.rect.top)
+        else:
+            pygame.mixer.music.pause()
+            player_walking = False
+
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         global game, enemy_walking
         super().__init__(enemy_group, all_sprites)
         self.health = 100
-        self.frames_standing = []
-        self.frames_walking = []
-        self.sheet1 = enemy_image
-        self.sheet2 = enemy_walk_image
-        self.cut_sheet(self.sheet1, 4, 1, self.frames_standing)
-        self.cut_sheet(self.sheet2, 5, 1, self.frames_walking)
+        self.speed_x = 0
+        self.speed_y = 0
+        self.speed = 5
+        self.frames = []
+        self.sheet = enemy_walk_image
+        self.cut_sheet(self.sheet, 5, 1, self.frames)
         self.cur_frame = 0
-        self.image = self.frames_standing[self.cur_frame]
-        self.rect = self.image.get_rect().move(32, 31)
+        self.image = self.frames[self.cur_frame]
+        self.rect = self.image.get_rect().move(26, 32)
         self.rect.topleft = (x, y)
 
     def cut_sheet(self, sheet, columns, rows, frames_list):
@@ -256,13 +328,29 @@ class Enemy(pygame.sprite.Sprite):
 
     def update(self):
         if game:
-            if enemy_walking:
-                self.cur_frame = (self.cur_frame + 1) % len(self.frames_walking)
-                self.image = self.frames_walking[self.cur_frame]
-            else:
-                self.cur_frame = (self.cur_frame + 1) % len(self.frames_standing)
-                self.image = self.frames_standing[self.cur_frame]
+            self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+            self.image = self.frames[self.cur_frame]
+            self.move_to()
             return self.image
+
+    def find_path(self, dest_x, dest_y):
+        delta_x = dest_x - self.rect.centerx
+        delta_y = dest_y - self.rect.centery
+        distance = math.sqrt(delta_x ** 2 + delta_y ** 2)
+
+        if distance != 0:
+            self.speed_x = (delta_x / distance) * self.speed
+            self.speed_y = (delta_y / distance) * self.speed
+
+    def move_to(self):
+        self.rect.left += self.speed_x
+        if (self.rect.left < 455 or self.rect.right > 995
+                or pygame.sprite.spritecollideany(self, wall_group)):
+            self.rect.left -= self.speed_x
+        self.rect.top += self.speed_y
+        if (self.rect.top < 119 or self.rect.bottom > 710
+            or pygame.sprite.spritecollideany(self, wall_group)):
+            self.rect.top -= self.speed_y
 
 
 def create_enemies(settings):
@@ -282,7 +370,7 @@ class Bullet(pygame.sprite.Sprite):
         self.cut_sheet(self.sheet1, 3, 1, self.frames)
         self.cur_frame = 0
         self.image = self.frames[self.cur_frame]
-        self.rect = self.image.get_rect().move(1, 1)
+        self.rect = self.image.get_rect().move(3, 3)
         self.rect.topleft = (x, y)
 
     def cut_sheet(self, sheet, columns, rows, frames_list):
@@ -296,7 +384,6 @@ class Bullet(pygame.sprite.Sprite):
         if game:
             self.cur_frame = (self.cur_frame + 1) % len(self.frames)
             self.image = self.frames[self.cur_frame]
-            return self.image
 
     def find_path(self, dest_x, dest_y):
         delta_x = dest_x - self.rect.centerx
@@ -316,6 +403,8 @@ class Bullet(pygame.sprite.Sprite):
                 and self.rect.top > 119 and self.rect.bottom < 710:
             if not pygame.sprite.spritecollideany(self, wall_group):
                 return True
+        FireballSound.stop()
+        HitSound.play()
         return False
 
 
@@ -337,7 +426,7 @@ class Particle(pygame.sprite.Sprite):
 
     def update(self):
         if game:
-            if self.cur_frame != 3:
+            if self.cur_frame != 2:
                 self.cur_frame = (self.cur_frame + 1) % len(self.frames)
                 self.image = self.frames[self.cur_frame]
                 return self.image
@@ -372,6 +461,7 @@ class Skin_Change_Menu():
 
     def Change(self, skin):
         global player_skins
+        SkinSelectSound.play()
         self.buttons[int(self.current_skin)].enable()
         self.current_skin = skin
         self.buttons[int(self.current_skin)].disable()
@@ -388,6 +478,7 @@ class Skin_Change_Menu():
 
     def back(self):
         global active, skin_menu
+        MenuSelectSound.play()
         skin_menu, active = False, True
         menu.current_option_index = 0
 
@@ -397,10 +488,11 @@ class Game:
         self.end_time = None
 
     def open_game(self, args):
-        global game, active, activeG, els, loading_images
+        global game, active, activeG, loading_images
         self.n, self.folder, self.quest = args.split(':')
         if int(self.n) <= int(progress[0]):
             game, active, activeG = True, False, False
+            LoadingMusic.play()
             self.quest_font1 = pygame.font.Font('Data/Courier.ttf', 75)
             self.quest_font2 = pygame.font.Font('Data/Courier.ttf', 40)
             self.string_rendered1 = self.quest_font1.render(f'Миссия #{self.n}', 1, pygame.Color('white'))
@@ -413,14 +505,19 @@ class Game:
             screen.blit(self.string_rendered1, self.score_rect1)
             screen.blit(self.string_rendered2, self.score_rect2)
             pygame.display.flip()
-            time.sleep(5)
+            time.sleep(10)
+            LoadingMusic.stop()
+            GameSound.play(-1)
             self.load_map(self.folder, self.n)
             cur2.execute("SELECT setting FROM Mission WHERE number = ?", (self.n,))
-            els, self.en_settings = cur2.fetchone()[0].split(';')
-            els = els.split(':')
+            self.els, self.en_settings = cur2.fetchone()[0].split(';')
+            for el in self.els.split(':'):
+                tile_create(el)
             # 1/753/508/10/9:1/603/545/10/9:3/795/100/40/40:2/600/200/10/9:4/900/290/1/2:4/919/289/1/2;8/550/210/40/50
             # 1/523/568/10/9:1/683/500/10/9:2/513/476/10/9:3/795/100/40/40:2/805/250/10/9:4/534/250/1/2:4/557/260/1/2:4/537/265/1/2:4/560/272/1/2;5/600/250/80/50
             create_enemies(self.en_settings)
+            for enemy in enemy_group:
+                enemy.find_path(player.rect.left, player.rect.top)
 
     def load_map(self, folder, i):
         global gamefon
@@ -430,6 +527,9 @@ class Game:
 
     def game_end(self, i=1):
         global game, active, progress, password
+        GameSound.stop()
+        time.sleep(1)
+        LoadingMusic.play()
         game = False
         active = True
         self.fon = load_image(f'Backgrounds/Ends/End{i}.png')
@@ -448,11 +548,14 @@ class Game:
         pygame.display.flip()
         Reset()
         time.sleep(10)
+        LoadingMusic.stop()
 
 
 
 def Quit():
     global running
+    MenuSelectSound.play()
+    time.sleep(MenuSelectSound.get_length())
     running = False
 
 
@@ -471,12 +574,14 @@ class GameMenu():
 
     def switch(self, direction):
         global G_current_option_index
+        MenuMoveSound.play()
         if activeG:
             G_current_option_index = max(0, min(G_current_option_index + direction,
                                                 len(self.option_surfaces) - 1)) # Эта строка предотвращает ошибки с индексом
 
     def select(self):
         if activeG:
+            MenuSelectSound.play()
             if self.args[G_current_option_index] != '':
                 self.callbacks[G_current_option_index](self.args[G_current_option_index])
             else:
@@ -519,7 +624,10 @@ gamemenu.append_option('Миссия 1', mission.open_game, '1:Dungeon Prison/As
 gamemenu.append_option('Миссия 2', mission.open_game, '2:Dungeon Prison/Assets:Скелетов всe больше. Осторожнее.')
 gamemenu.append_option('Назад', gamemenu.Back)
 running = play
-enemys_update_timer = 0
+pygame.mixer.music.load('Data/Music/RunMusic.ogg')
+pygame.mixer.music.play(-1)
+pygame.mixer.music.set_volume(0.3)
+pygame.mixer.music.pause()
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -548,43 +656,19 @@ while running:
             and (event.key == pygame.K_SPACE)):
                 gamemenu.select()
         if game:
-            m1_cooldown -= 1
-            time_delta = clock.tick(60) / 1000.0
-            manager1.process_events(event)
-            manager2.process_events(event)
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_a:
-                    nav += 'a'
-                    player_walking = True
-                elif event.key == pygame.K_w:
-                    nav += 'w'
-                    player_walking = True
-                elif event.key == pygame.K_d:
-                    nav += 'd'
-                    player_walking = True
-                elif event.key == pygame.K_s:
-                    nav += 's'
-                    player_walking = True
-                if event.key == pygame.K_e:
-                    if pygame.sprite.spritecollideany(player, exit_group):
-                        mission.game_end()
+            pressed_buttons = pygame.key.get_pressed()
+            if pressed_buttons[pygame.K_e]:
+                if pygame.sprite.spritecollideany(player, exit_group):
+                    ExitSound.play()
+                    mission.game_end()
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if m1_cooldown <= 0:
-                    m1_cooldown = 10
+                    m1_cooldown = 20
+                    FireballSound.play(-1)
                     bullet = Bullet(player.rect.left, player.rect.top)
                     b_coords = pygame.mouse.get_pos()
                     bullet.find_path(b_coords[0], b_coords[1])
-
-            if event.type == pygame.KEYUP:
-                if event.key == pygame.K_a:
-                    nav = nav[:nav.find('a')] + nav[nav.find('a') + 1::]
-                elif event.key == pygame.K_w:
-                    nav = nav[:nav.find('w')] + nav[nav.find('w') + 1::]
-                elif event.key == pygame.K_d:
-                    nav = nav[:nav.find('d')] + nav[nav.find('d') + 1::]
-                elif event.key == pygame.K_s:
-                    nav = nav[:nav.find('s')] + nav[nav.find('s') + 1::]
 
         elif skin_menu:
             manager1.process_events(event)
@@ -603,7 +687,9 @@ while running:
     elif activeG:
         gamemenu.draw(100, 100, 100)
     elif game:
+        m1_cooldown -= 1
         screen.blit(gamefon, (0, 0))
+
         for bullet in bullet_group:
             if not bullet.move_to():
                 bullet.kill()
@@ -611,96 +697,29 @@ while running:
                 for enemy in enemy_group:
                     hit_enemy_group.add(enemy)
                     if pygame.sprite.spritecollideany(bullet, hit_enemy_group):
+                        FireballSound.stop()
                         particle = Particle(bullet.rect.left, bullet.rect.top, hit_img, 4, 1)
-                        enemy.health -= 20
+                        enemy.health -= 45
                         bullet.kill()
                         if enemy.health <= 0:
+                            EnemyDieSound.play()
                             score += 20
                             enemy.kill()
+                        else:
+                            HitSound.play()
                     hit_enemy_group.remove(enemy)
 
-        for el in els:
-            tile_update(el)
-
-        if nav != '':
-            for el in nav:
-                if el == 'a':
-                    player.rect.left -= 10
-                    if pygame.sprite.spritecollideany(player, wall_group):
-                        player.rect.left += 10
-                    elif player.rect.left < 455:
-                        player.rect.left = 455
-
-                if el == 'd':
-                    player.rect.left += 10
-                    if pygame.sprite.spritecollideany(player, wall_group):
-                        player.rect.left -= 10
-                    elif player.rect.right > 995:
-                        player.rect.right = 995
-
-                if el == 'w':
-                    player.rect.top -= 10
-                    if pygame.sprite.spritecollideany(player, wall_group):
-                        player.rect.top += 10
-                    elif player.rect.top < 119:
-                        player.rect.top = 119
-
-                if el == 's':
-                    player.rect.top += 10
-                    if pygame.sprite.spritecollideany(player, wall_group):
-                        player.rect.top -= 10
-                    elif player.rect.bottom > 710:
-                        player.rect.bottom = 710
-        else:
-            player_walking = False
-
-        enemy_update_interval = random.randint(1, 3)
-        enemys_update_timer += 1
-
-        if enemys_update_timer >= enemy_update_interval:
-            enemys_update_timer = 0
-
-            for enemys in enemy_group:
-                action = random.choice(['Idle', 'Run'])
-                if action == 'Idle':
-                    enemy_walking = False
-                else:
-                    move = random.choice(['W', 'A', 'S', 'D'])
-                    enemy_walking = True
-                    enemy_speed = random.randint(8, 15)
-
-                    if move == 'W':
-                        enemys.rect.top -= enemy_speed
-                        if pygame.sprite.spritecollideany(enemys, wall_group):
-                            enemys.rect.top += enemy_speed
-                        elif enemys.rect.top < 119:
-                            enemys.rect.top = 119
-                    elif move == 'S':
-                        enemys.rect.top += enemy_speed
-                        if pygame.sprite.spritecollideany(enemys, wall_group):
-                            enemys.rect.top -= enemy_speed
-                        elif enemys.rect.bottom > 710:
-                            enemys.rect.bottom = 710
-                    elif move == 'A':
-                        enemys.rect.left -= enemy_speed
-                        if pygame.sprite.spritecollideany(enemys, wall_group):
-                            enemys.rect.left += enemy_speed
-                        elif enemys.rect.left < 455:
-                            enemys.rect.left = 455
-                    else:
-                        enemys.rect.left += enemy_speed
-                        if pygame.sprite.spritecollideany(enemys, wall_group):
-                            enemys.rect.left -= enemy_speed
-                        elif enemys.rect.right > 995:
-                            enemys.rect.right = 995
-                if pygame.sprite.spritecollideany(enemys, player_group):
-                    mission.game_end(2)
-
+        player.move()
         all_sprites.update()
+        if pygame.sprite.spritecollideany(player, enemy_group):
+            GameOverSound.play()
+            mission.game_end(2)
+
         all_sprites.draw(screen)
         player_group.draw(screen)
         enemy_group.draw(screen)
         particle_group.draw(screen)
+
     elif skin_menu:
         screen.blit(skin_fon, (0, 0))
         manager1.update(time_delta)
