@@ -240,7 +240,7 @@ class Player(pygame.sprite.Sprite):
         self.cut_sheet(self.sheet2, 6, 1, self.frames_walking)
         self.cur_frame = 0
         self.image = self.frames_standing[self.cur_frame]
-        self.rect = self.image.get_rect().move(26, 32)
+        self.rect = self.image.get_rect().move(25, 31)
         self.rect.topleft = (x, y)
 
     def cut_sheet(self, sheet, columns, rows, frames_list):
@@ -316,7 +316,7 @@ class Enemy(pygame.sprite.Sprite):
         self.cut_sheet(self.sheet, 5, 1, self.frames)
         self.cur_frame = 0
         self.image = self.frames[self.cur_frame]
-        self.rect = self.image.get_rect().move(26, 32)
+        self.rect = self.image.get_rect().move(25, 31)
         self.rect.topleft = (x, y)
 
     def cut_sheet(self, sheet, columns, rows, frames_list):
@@ -513,8 +513,8 @@ class Game:
             self.els, self.en_settings = cur2.fetchone()[0].split(';')
             for el in self.els.split(':'):
                 tile_create(el)
-            # 1/753/508/10/9:1/603/545/10/9:3/795/100/40/40:2/600/200/10/9:4/900/290/1/2:4/919/289/1/2;8/550/210/40/50
-            # 1/523/568/10/9:1/683/500/10/9:2/513/476/10/9:3/795/100/40/40:2/805/250/10/9:4/534/250/1/2:4/557/260/1/2:4/537/265/1/2:4/560/272/1/2;5/600/250/80/50
+            # 1/753/508/40/28:1/603/545/40/28:3/795/100/40/40:2/600/200/40/26:4/900/290/1/2:4/919/289/1/2;8/550/210/40/50
+            # 1/523/568/40/28:1/683/500/40/28:2/513/476/40/26:3/795/100/40/40:2/805/250/40/26:4/534/250/1/2:4/557/260/1/2:4/537/265/1/2:4/560/272/1/2;5/600/250/80/50
             create_enemies(self.en_settings)
             for enemy in enemy_group:
                 enemy.find_path(player.rect.left, player.rect.top)
@@ -534,12 +534,12 @@ class Game:
         active = True
         self.fon = load_image(f'Backgrounds/Ends/End{i}.png')
         self.end_time = pygame.time.get_ticks()
-        self.mis_num = int(self.n)
-        progress = str(self.mis_num + 1) + ':' + ':'.join(progress[1::])
-        cur.execute("UPDATE Users SET progress = ? WHERE password = ?", (progress, password))
-        conn1.commit()
         screen.blit(self.fon, (0, 0))
         if i == 1:
+            self.mis_num = int(self.n)
+            progress = str(self.mis_num + 1) + ':' + ':'.join(progress[2::])
+            cur.execute("UPDATE Users SET progress = ? WHERE password = ?", (progress, password))
+            conn1.commit()
             self.font = pygame.font.Font('Data/Courier.ttf', 100)
             self.string_rendered = self.font.render(str(score), 1, pygame.Color('white'))
             self.score_rect = self.string_rendered.get_rect()
